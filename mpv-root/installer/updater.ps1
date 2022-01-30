@@ -46,11 +46,10 @@ function Check-Mpv {
     return $is_exist
 }
 
-function Download-Mpv ($filename) {
-    Write-Host "Downloading" $filename -ForegroundColor Green
+function Download-Mpv ($filename, $download_link) {
+    Write-Host "Downloading $filename from $download_link"  -ForegroundColor Green
     $global:progressPreference = 'Continue'
-    $link = "https://download.sourceforge.net/mpv-player-windows/" + $filename
-    Invoke-WebRequest -Uri $link -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox -OutFile $filename
+    Invoke-WebRequest -Uri $download_link -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox -OutFile $filename
 }
 
 function Download-Ytplugin ($plugin, $version) {
@@ -83,7 +82,7 @@ function Extract-Mpv ($file) {
     & $7za x -y $file
 }
 
-function Get-Latest-Mpv($Arch) {
+function Get-Latest-MpvFromSourceforge($Arch) {
     $i686_link = "https://sourceforge.net/projects/mpv-player-windows/rss?path=/32bit"
     $x86_64_link = "https://sourceforge.net/projects/mpv-player-windows/rss?path=/64bit"
     $link = ''
@@ -96,7 +95,25 @@ function Get-Latest-Mpv($Arch) {
     $result = [xml](New-Object System.Net.WebClient).DownloadString($link)
     $latest = $result.rss.channel.item.link[0]
     $filename = $latest.split("/")[-2]
-    return [System.Uri]::UnescapeDataString($filename)
+    $download_link = "https://download.sourceforge.net/mpv-player-windows/" + $filename
+    return [System.Uri]::UnescapeDataString($filename), $download_link
+}
+
+function Get-Latest-MpvFromGithub($Arch) {
+	$releases_link = "https://api.github.com/repos/dyphire/mpv-winbuild/releases/latest"
+    $i686_pattern = "mpv-i686-*.7z"
+    $x86_64_pattern = "mpv-x86_64-*.7z"
+    $pattern = ''
+    switch ($Arch)
+    {
+        i686 { $pattern = $i686_pattern}
+        x86_64 { $pattern = $x86_64_pattern }
+    }
+    Write-Host "Fetching Releases for mpv" -ForegroundColor Green
+    $latest = ((Invoke-WebRequest -Uri $releases_link -UseBasicParsing | ConvertFrom-Json).assets | Where-Object name -like $pattern)
+    $filename = $latest.name
+    $download_link = $latest.browser_download_url
+    return $filename, $download_link
 }
 
 function Get-Latest-Ytplugin ($plugin) {
@@ -190,7 +207,7 @@ function Upgrade-Mpv {
 
     if (Check-Mpv) {
         $arch = (Get-Arch).FileType
-        $remoteName = Get-Latest-Mpv $arch
+        $remoteName, $download_link= Get-Latest-MpvFromGithub $arch
         $localgit = ExtractGitFromFile
         $localdate = ExtractDateFromFile
         $remotegit = ExtractGitFromURL $remoteName
@@ -227,7 +244,7 @@ function Upgrade-Mpv {
                 Write-Host "Detecting System Type is 32-bit" -ForegroundColor Green
                 $arch = "i686"
             }
-            $remoteName = Get-Latest-Mpv $arch
+            $remoteName, $download_link = Get-Latest-MpvFromGithub $arch
         }
         else {
             $need_download = $false
@@ -235,7 +252,7 @@ function Upgrade-Mpv {
     }
 
     if ($need_download) {
-        Download-Mpv $remoteName
+        Download-Mpv $remoteName $download_link
         Check-7z
         Extract-Mpv $remoteName
     }
