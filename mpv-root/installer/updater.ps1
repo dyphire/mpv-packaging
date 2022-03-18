@@ -63,7 +63,7 @@ function Download-Ytplugin ($plugin, $version) {
             if (-Not (Test-Path (Join-Path $env:windir "SysWow64"))) {
                 $32bit = "_x86"
             }
-            $link = -join("https://github.com/yt-dlp/yt-dlp/releases/download/", $version, "/", $plugin, $32bit, ".exe")
+            $link = -join("https://github.com/ytdl-patched/yt-dlp/releases/download/", $version, "/", $plugin, $32bit, ".exe")
             $plugin_exe = -join($plugin, $32bit, ".exe")
         }
         "youtube-dl" {
@@ -119,7 +119,7 @@ function Get-Latest-MpvFromGithub($Arch) {
 function Get-Latest-Ytplugin ($plugin) {
     switch -wildcard ($plugin) {
         "yt-dlp*" {
-            $link = "https://github.com/yt-dlp/yt-dlp/releases.atom"
+            $link = "https://github.com/ytdl-patched/yt-dlp/releases.atom"
             Write-Host "Fetching RSS feed for ytp-dlp" -ForegroundColor Green
             $global:progressPreference = 'silentlyContinue'
             $resp = [xml](Invoke-WebRequest $link -MaximumRedirection 0 -ErrorAction Ignore -UseBasicParsing).Content
