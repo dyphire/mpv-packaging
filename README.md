@@ -1,2 +1,2 @@
-# mpv-packaging
-Used to package mpv build before publish
+# libmpv-autoupdate
+A powershell script to auto update libmpv

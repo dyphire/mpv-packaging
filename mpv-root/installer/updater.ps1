@@ -38,13 +38,14 @@ function Check-Ytplugin {
 }
 
 function Check-Mpv {
-    $mpv = (Get-Location).Path + "\mpv.exe"
+    $mpv = (Get-Location).Path + "\mpv-2.dll"
     $is_exist = Test-Path $mpv
     return $is_exist
 }
 
 function Download-Archive ($filename, $link) {
     Write-Host "Downloading" $filename -ForegroundColor Green
+    $global:progressPreference = 'Continue'
     Invoke-WebRequest -Uri $link -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox -OutFile $filename
 }
 
@@ -54,6 +55,7 @@ function Download-Ytplugin ($plugin, $version) {
     switch -wildcard ($plugin) {
         "yt-dlp*" {
             Write-Host "Downloading $plugin ($version)" -ForegroundColor Green
+            $global:progressPreference = 'Continue'
             $32bit = ""
             if (-Not (Test-Path (Join-Path $env:windir "SysWow64"))) {
                 $32bit = "_x86"
@@ -63,6 +65,7 @@ function Download-Ytplugin ($plugin, $version) {
         }
         "youtube-dl" {
             Write-Host "Downloading $plugin ($version)" -ForegroundColor Green
+            $global:progressPreference = 'Continue'
             $link = -join("https://yt-dl.org/downloads/", $version, "/youtube-dl.exe")
             $plugin_exe = "youtube-dl.exe"
         }
@@ -76,13 +79,19 @@ function Extract-Archive ($file) {
     & $7zr x -y $file
 }
 
+function Extract-Mpv ($file) {
+    $7zr = (Get-Location).Path + "\7z\7zr.exe"
+    Write-Host "Extracting" $file -ForegroundColor Green
+    & $7zr x $file  -o".\" "mpv-2.dll" -y
+}
+
 function Get-Latest-Mpv($Arch) {
     $filename = ""
     $download_link = ""
     $api_gh = "https://api.github.com/repos/dyphire/mpv-winbuild/releases/latest"
     $json = Invoke-WebRequest $api_gh -MaximumRedirection 0 -ErrorAction Ignore -UseBasicParsing | ConvertFrom-Json
-    $filename = $json.assets | where { $_.name -Match "mpv-$Arch-[0-9]{8}" } | Select-Object -ExpandProperty name
-    $download_link = $json.assets | where { $_.name -Match "mpv-$Arch-[0-9]{8}" } | Select-Object -ExpandProperty browser_download_url
+    $filename = $json.assets | where { $_.name -Match "mpv-dev-$Arch-[0-9]{8}" } | Select-Object -ExpandProperty name
+    $download_link = $json.assets | where { $_.name -Match "mpv-dev-$Arch-[0-9]{8}" } | Select-Object -ExpandProperty browser_download_url
     if ($filename -is [array]) {
         return $filename[0], $download_link[0]
     }
@@ -96,6 +105,7 @@ function Get-Latest-Ytplugin ($plugin) {
         "yt-dlp*" {
             $link = "https://github.com/ytdl-patched/yt-dlp/releases.atom"
             Write-Host "Fetching RSS feed for ytp-dlp" -ForegroundColor Green
+            $global:progressPreference = 'silentlyContinue'
             $resp = [xml](Invoke-WebRequest $link -MaximumRedirection 0 -ErrorAction Ignore -UseBasicParsing).Content
             $link = $resp.feed.entry[0].link.href
             $version = $link.split("/")[-1]
@@ -104,6 +114,7 @@ function Get-Latest-Ytplugin ($plugin) {
         "youtube-dl" {
             $link = "https://yt-dl.org/downloads/latest/youtube-dl.exe"
             Write-Host "Fetching RSS feed for youtube-dl" -ForegroundColor Green
+            $global:progressPreference = 'silentlyContinue'
             $resp = Invoke-WebRequest $link -MaximumRedirection 0 -ErrorAction Ignore -UseBasicParsing
             $redirect_link = $resp.Headers.Location
             $version = $redirect_link.split("/")[4]
@@ -127,7 +138,7 @@ function Get-Latest-FFmpeg ($Arch) {
 
 function Get-Arch {
     # Reference: http://superuser.com/a/891443
-    $FilePath = [System.IO.Path]::Combine((Get-Location).Path, 'mpv.exe')
+    $FilePath = [System.IO.Path]::Combine((Get-Location).Path, 'mpv-2.dll')
     [int32]$MACHINE_OFFSET = 4
     [int32]$PE_POINTER_OFFSET = 60
 
@@ -154,7 +165,7 @@ function Get-Arch {
 }
 
 function ExtractGitFromFile {
-    $stripped = .\mpv --no-config | select-string "mpv" | select-object -First 1
+    $stripped = Get-ChildItem ./mpv-2.dll | Select-Object -ExpandProperty VersionInfo | Select-Object FileVersion | Select-Object -ExpandProperty FileVersion
     $pattern = "-g([a-z0-9-]{7})"
     $bool = $stripped -match $pattern
     return $matches[1]
@@ -167,7 +178,7 @@ function ExtractGitFromURL($filename) {
 }
 
 function ExtractDateFromFile {
-    $date = (Get-Item ./mpv.exe).LastWriteTimeUtc
+    $date = (Get-Item ./mpv-2.dll).LastWriteTimeUtc
     $day = $date.Day.ToString("00")
     $month = $date.Month.ToString("00")
     $year = $date.Year.ToString("0000")
@@ -175,7 +186,7 @@ function ExtractDateFromFile {
 }
 
 function ExtractDateFromURL($filename) {
-    $pattern = "mpv-[xi864_].*-([0-9]{8})-git-([a-z0-9-]{7})"
+    $pattern = "mpv-dev-[xi864_].*-([0-9]{8})-git-([a-z0-9-]{7})"
     $bool = $filename -match $pattern
     return $matches[1]
 }
@@ -303,21 +314,21 @@ function Upgrade-Mpv {
         {
             if ($localdate -match $remotedate)
             {
-                Write-Host "You are already using latest mpv build -- $remoteName" -ForegroundColor Green
+                Write-Host "You are already using latest libmpv build -- $remoteName" -ForegroundColor Green
                 $need_download = $false
             }
             else {
-                Write-Host "Newer mpv build available" -ForegroundColor Green
+                Write-Host "Newer libmpv build available" -ForegroundColor Green
                 $need_download = $true
             }
         }
         else {
-            Write-Host "Newer mpv build available" -ForegroundColor Green
+            Write-Host "Newer libmpv build available" -ForegroundColor Green
             $need_download = $true
         }
     }
     else {
-        Write-Host "mpv doesn't exist. " -ForegroundColor Green -NoNewline
+        Write-Host "libmpv doesn't exist. " -ForegroundColor Green -NoNewline
         $result = Read-KeyOrTimeout "Proceed with downloading? [Y/n] (default=y)" "Y"
         Write-Host ""
 
@@ -345,7 +356,7 @@ function Upgrade-Mpv {
     if ($need_download) {
         Download-Archive $remoteName $download_link
         Check-7z
-        Extract-Archive $remoteName
+        Extract-Mpv $remoteName
     }
     Check-Autodelete $remoteName
 }
