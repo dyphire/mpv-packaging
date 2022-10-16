@@ -82,7 +82,7 @@ function Extract-Archive ($file) {
 function Extract-Mpv ($file) {
     $7zr = (Get-Location).Path + "\7z\7zr.exe"
     Write-Host "Extracting" $file -ForegroundColor Green
-    & $7zr x $file  -o".\" "mpv-2.dll" -y
+    & $7zr x $file  -o".\" *.dll -y
 }
 
 function Get-Latest-Mpv($Arch) {
@@ -124,7 +124,7 @@ function Get-Latest-Ytplugin ($plugin) {
 }
 
 function Get-Latest-FFmpeg ($Arch) {
-    $api_gh = "https://api.github.com/repos/dyphire/mpv-winbuild/releases/latest"
+    $api_gh = "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/latest"
     $json = Invoke-WebRequest $api_gh -MaximumRedirection 0 -ErrorAction Ignore -UseBasicParsing | ConvertFrom-Json
     $filename = $json.assets | where { $_.name -Match "ffmpeg-$Arch-git-" } | Select-Object -ExpandProperty name
     $download_link = $json.assets | where { $_.name -Match "ffmpeg-$Arch-git-" } | Select-Object -ExpandProperty browser_download_url
