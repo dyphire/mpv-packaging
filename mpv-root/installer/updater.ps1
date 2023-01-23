@@ -38,7 +38,7 @@ function Check-Ytplugin {
 }
 
 function Check-Mpv {
-    $mpv = (Get-Location).Path + "\mpv-2.dll"
+    $mpv = (Get-Location).Path + "\libmpv-2.dll"
     $is_exist = Test-Path $mpv
     return $is_exist
 }
@@ -138,7 +138,7 @@ function Get-Latest-FFmpeg ($Arch) {
 
 function Get-Arch {
     # Reference: http://superuser.com/a/891443
-    $FilePath = [System.IO.Path]::Combine((Get-Location).Path, 'mpv-2.dll')
+    $FilePath = [System.IO.Path]::Combine((Get-Location).Path, 'libmpv-2.dll')
     [int32]$MACHINE_OFFSET = 4
     [int32]$PE_POINTER_OFFSET = 60
 
@@ -165,7 +165,7 @@ function Get-Arch {
 }
 
 function ExtractGitFromFile {
-    $stripped = Get-ChildItem ./mpv-2.dll | Select-Object -ExpandProperty VersionInfo | Select-Object FileVersion | Select-Object -ExpandProperty FileVersion
+    $stripped = Get-ChildItem ./libmpv-2.dll | Select-Object -ExpandProperty VersionInfo | Select-Object FileVersion | Select-Object -ExpandProperty FileVersion
     $pattern = "-g([a-z0-9-]{7})"
     $bool = $stripped -match $pattern
     return $matches[1]
@@ -178,7 +178,7 @@ function ExtractGitFromURL($filename) {
 }
 
 function ExtractDateFromFile {
-    $date = (Get-Item ./mpv-2.dll).LastWriteTimeUtc
+    $date = (Get-Item ./libmpv-2.dll).LastWriteTimeUtc
     $day = $date.Day.ToString("00")
     $month = $date.Month.ToString("00")
     $year = $date.Year.ToString("0000")
