@@ -101,35 +101,13 @@ function Extract-Archive ($file) {
     & $7z x -y $file
 }
 
-function Get-Latest-Mpv($Arch, $channel) {
+function Get-Latest-Mpv($Arch) {
     $filename = ""
     $download_link = ""
-    switch -wildcard ($channel) {
-        "daily" {
-            $api_gh = "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/latest"
-            $json = Invoke-WebRequest $api_gh -MaximumRedirection 0 -ErrorAction Ignore -UseBasicParsing | ConvertFrom-Json
-            $filename = $json.assets | where { $_.name -Match "mpv-$Arch" } | Select-Object -ExpandProperty name
-            $download_link = $json.assets | where { $_.name -Match "mpv-$Arch" } | Select-Object -ExpandProperty browser_download_url
-        }
-        "weekly" {
-            $i686_link = "https://sourceforge.net/projects/mpv-player-windows/rss?path=/32bit"
-            $x86_64_link = "https://sourceforge.net/projects/mpv-player-windows/rss?path=/64bit"
-            $x86_64v3_link = "https://sourceforge.net/projects/mpv-player-windows/rss?path=/64bit-v3"
-            $rss_link = ''
-            switch ($Arch)
-            {
-                i686 { $rss_link = $i686_link}
-                x86_64 { $rss_link = $x86_64_link }
-                x86_64-v3 { $rss_link = $x86_64v3_link }
-            }
-            Write-Host "Fetching RSS feed for mpv" -ForegroundColor Green
-            $result = [xml](New-Object System.Net.WebClient).DownloadString($rss_link)
-            $latest = $result.rss.channel.item.link[0]
-            $tempname = $latest.split("/")[-2]
-            $filename = [System.Uri]::UnescapeDataString($tempname)
-            $download_link = "https://download.sourceforge.net/mpv-player-windows/" + $filename
-        }
-    }
+    $api_gh = "https://api.github.com/repos/dyphire/mpv-winbuild/releases/latest"
+    $json = Invoke-WebRequest $api_gh -MaximumRedirection 0 -ErrorAction Ignore -UseBasicParsing | ConvertFrom-Json
+    $filename = $json.assets | where { $_.name -Match "mpv-$Arch-[0-9]{8}" } | Select-Object -ExpandProperty name
+    $download_link = $json.assets | where { $_.name -Match "mpv-$Arch-[0-9]{8}" } | Select-Object -ExpandProperty browser_download_url
     if ($filename -is [array]) {
         return $filename[0], $download_link[0]
     }
@@ -160,10 +138,10 @@ function Get-Latest-Ytplugin ($plugin) {
 }
 
 function Get-Latest-FFmpeg ($Arch) {
-    $api_gh = "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/latest"
+    $api_gh = "https://api.github.com/repos/dyphire/mpv-winbuild-cmake/releases/latest"
     $json = Invoke-WebRequest $api_gh -MaximumRedirection 0 -ErrorAction Ignore -UseBasicParsing | ConvertFrom-Json
-    $filename = $json.assets | where { $_.name -Match "ffmpeg-$Arch" } | Select-Object -ExpandProperty name
-    $download_link = $json.assets | where { $_.name -Match "ffmpeg-$Arch" } | Select-Object -ExpandProperty browser_download_url
+    $filename = $json.assets | where { $_.name -Match "ffmpeg-$Arch-git-" } | Select-Object -ExpandProperty name
+    $download_link = $json.assets | where { $_.name -Match "ffmpeg-$Arch-git-" } | Select-Object -ExpandProperty browser_download_url
     if ($filename -is [array]) {
         return $filename[0], $download_link[0]
     }
@@ -237,7 +215,6 @@ function Test-Admin
 function Create-XML {
 @"
 <settings>
-  <channel>unset</channel>
   <arch>unset</arch>
   <autodelete>unset</autodelete>
   <getffmpeg>unset</getffmpeg>
@@ -245,39 +222,11 @@ function Create-XML {
 "@ | Set-Content "settings.xml" -Encoding UTF8
 }
 
-function Check-ChannelRelease {
-    $channel = ""
-    $file = "settings.xml"
-
-    if (-not (Test-Path $file)) {
-        $result = Read-KeyOrTimeout "Choose mpv updates frequency, weekly or daily? [1=weekly/2=daily] (default=1)" "D1"
-        Write-Host ""
-        if ($result -eq 'D1') {
-            $channel = "weekly"
-        }
-        elseif ($result -eq 'D2') {
-            $channel = "daily"
-        }
-        else {
-            throw "Please enter valid input key."
-        }
-        Create-XML
-        [xml]$doc = Get-Content $file
-        $doc.settings.channel = $channel
-        $doc.Save($file)
-    }
-    else {
-        [xml]$doc = Get-Content $file
-        $channel = $doc.settings.channel
-    }
-    return $channel
-}
-
 function Check-Arch($arch) {
     $get_arch = ""
     $file = "settings.xml"
 
-    if (-not (Test-Path $file)) { exit }
+    if (-not (Test-Path $file)) { Create-XML }
     [xml]$doc = Get-Content $file
     if ($doc.settings.arch -eq "unset") {
         if ($arch -eq "i686") {
@@ -367,13 +316,11 @@ function Upgrade-Mpv {
     $remoteName = ""
     $download_link = ""
     $arch = ""
-    $channel = ""
 
     if (Check-Mpv) {
-        $channel = Check-ChannelRelease
         $file_arch = (Get-Arch).FileType
         $arch = Check-Arch $file_arch
-        $remoteName, $download_link = Get-Latest-Mpv $arch $channel
+        $remoteName, $download_link = Get-Latest-Mpv $arch
         $localgit = ExtractGitFromFile
         $localdate = ExtractDateFromFile
         $remotegit = ExtractGitFromURL $remoteName
@@ -410,9 +357,8 @@ function Upgrade-Mpv {
                 Write-Host "Detecting System Type is 32-bit" -ForegroundColor Green
                 $original_arch = "i686"
             }
-            $channel = Check-ChannelRelease
             $arch = Check-Arch $original_arch
-            $remoteName, $download_link = Get-Latest-Mpv $arch $channel
+            $remoteName, $download_link = Get-Latest-Mpv $arch
         }
         elseif ($result -eq 'N') {
             $need_download = $false
